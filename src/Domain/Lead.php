@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Bahdan\LeadCaptureBundle\Domain;
 
-final readonly class Lead
+readonly class Lead
 {
     public function __construct(
         public string $email,
@@ -28,12 +28,12 @@ final readonly class Lead
         }
     }
 
-    public static function create(string $email, string $phone, string $message, string $ipHash, string $source): self
+    public static function create(string $email, string $phone, string $message, string $ipHash, string $source): static
     {
         $cleanEmail = strtolower(trim($email));
         $cleanSource = preg_replace('/[^a-z0-9_-]/i', '', $source) ?: 'website';
 
-        return new self(
+        return new static(
             $cleanEmail,
             trim($phone),
             trim(strip_tags($message)),
@@ -44,9 +44,9 @@ final readonly class Lead
     }
 
     /** @param array<string, mixed> $data */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data): static
     {
-        return new self(
+        return new static(
             (string) ($data['email'] ?? ''),
             (string) ($data['phone'] ?? ''),
             (string) ($data['message'] ?? ''),

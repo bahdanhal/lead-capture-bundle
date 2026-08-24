@@ -7,7 +7,7 @@ namespace Bahdan\LeadCaptureBundle\Application;
 use Bahdan\LeadCaptureBundle\Domain\Lead;
 use Bahdan\LeadCaptureBundle\Domain\LeadRepository;
 
-final readonly class CaptureLead
+readonly class CaptureLead
 {
     public function __construct(
         private LeadRepository $repository,
