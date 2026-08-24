@@ -1,0 +1,30 @@
+# Lead Capture Bundle
+
+Lead ingestion and contact request processing bundle for Symfony applications with dual Doctrine ORM and JSONL storage backends.
+
+## Features
+
+- **Domain Model**: Strictly validated `Lead` domain value object (email/phone normalization, content size guarding, HMAC-hashed IP tracking).
+- **Dual Persistence**: Production Doctrine ORM entity mapping and fallback append-only JSONL storage.
+- **Application Services**: `CaptureLead` orchestration use-case.
+
+## Installation
+
+```bash
+composer require bahdan/lead-capture-bundle
+```
+
+## Configuration
+
+Register the bundle in `config/bundles.php`:
+
+```php
+return [
+    // ...
+    Bahdan\LeadCaptureBundle\LeadCaptureBundle::class => ['all' => true],
+];
+```
+
+## License
+
+MIT
