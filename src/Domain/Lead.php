@@ -20,8 +20,15 @@ readonly class Lead
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             throw new \InvalidArgumentException('Invalid email address provided for lead.');
         }
-        if ($phone !== '' && !preg_match('/^\+?[0-9 ()-]{7,30}$/', $phone)) {
-            throw new \InvalidArgumentException('Invalid phone number provided for lead.');
+        if ($phone !== '') {
+            $digitsOnly = preg_replace('/[^0-9]/', '', $phone) ?? '';
+            if (
+                !preg_match('#^\+?[0-9\s()./-]{7,30}$#', $phone)
+                || strlen($digitsOnly) < 7
+                || preg_match('/^0+$/', $digitsOnly) === 1
+            ) {
+                throw new \InvalidArgumentException('Invalid phone number provided for lead.');
+            }
         }
         if (mb_strlen($message) > 1000) {
             throw new \InvalidArgumentException('Contact message is too long.');
@@ -32,11 +39,12 @@ readonly class Lead
     {
         $cleanEmail = strtolower(trim($email));
         $cleanSource = preg_replace('/[^a-z0-9_-]/i', '', $source) ?: 'website';
+        $cleanMessage = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $message) ?? $message);
 
         return new static(
             $cleanEmail,
             trim($phone),
-            trim(strip_tags($message)),
+            $cleanMessage,
             $ipHash,
             $cleanSource,
             new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
@@ -46,13 +54,17 @@ readonly class Lead
     /** @param array<string, mixed> $data */
     public static function fromArray(array $data): static
     {
+        $timestamp = isset($data['timestamp']) && (string) $data['timestamp'] !== ''
+            ? (string) $data['timestamp']
+            : (string) ($data['created_at'] ?? 'now');
+
         return new static(
             (string) ($data['email'] ?? ''),
             (string) ($data['phone'] ?? ''),
             (string) ($data['message'] ?? ''),
             (string) ($data['ip_hash'] ?? ''),
             (string) ($data['source'] ?? 'website'),
-            new \DateTimeImmutable((string) ($data['timestamp'] ?? 'now')),
+            new \DateTimeImmutable($timestamp !== '' ? $timestamp : 'now'),
         );
     }
 

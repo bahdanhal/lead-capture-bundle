@@ -9,5 +9,5 @@ interface LeadRepository
     public function save(Lead $lead): void;
 
     /** @return list<Lead> */
-    public function all(): array;
+    public function all(?int $limit = null): array;
 }
