@@ -14,6 +14,14 @@ Lead ingestion and contact request processing bundle for Symfony applications wi
 composer require bahdan/lead-capture-bundle
 ```
 
+Doctrine is optional. Install it only when selecting the Doctrine storage backend:
+
+```bash
+composer require doctrine/orm doctrine/dbal
+```
+
+The JSONL backend does not register or resolve Doctrine services.
+
 ## Configuration
 
 Register the bundle in `config/bundles.php`:

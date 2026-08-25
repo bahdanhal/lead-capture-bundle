@@ -29,16 +29,16 @@ final class LeadCaptureExtension extends Extension
         $jsonlDefinition->setAutoconfigured(true);
         $container->setDefinition(JsonlLeadRepository::class, $jsonlDefinition);
 
-        $doctrineDefinition = new Definition(DoctrineLeadRepository::class, [
-            new Reference('doctrine.orm.entity_manager'),
-        ]);
-        $doctrineDefinition->setAutowired(true);
-        $doctrineDefinition->setAutoconfigured(true);
-        $container->setDefinition(DoctrineLeadRepository::class, $doctrineDefinition);
-
-        $targetRepository = $config['storage'] === 'jsonl'
-            ? JsonlLeadRepository::class
-            : DoctrineLeadRepository::class;
+        $targetRepository = JsonlLeadRepository::class;
+        if ($config['storage'] === 'doctrine') {
+            $doctrineDefinition = new Definition(DoctrineLeadRepository::class, [
+                new Reference('doctrine.orm.entity_manager'),
+            ]);
+            $doctrineDefinition->setAutowired(true);
+            $doctrineDefinition->setAutoconfigured(true);
+            $container->setDefinition(DoctrineLeadRepository::class, $doctrineDefinition);
+            $targetRepository = DoctrineLeadRepository::class;
+        }
 
         $container->setAlias(LeadRepository::class, $targetRepository)->setPublic(true);
 

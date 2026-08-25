@@ -6,7 +6,10 @@ namespace Bahdan\LeadCaptureBundle\Tests;
 
 use Bahdan\LeadCaptureBundle\Application\CaptureLead;
 use Bahdan\LeadCaptureBundle\Domain\Lead;
+use Bahdan\LeadCaptureBundle\Infrastructure\DoctrineLeadRepository;
 use Bahdan\LeadCaptureBundle\Infrastructure\JsonlLeadRepository;
+use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
 final class LeadContextTest extends TestCase
@@ -99,5 +102,29 @@ final class LeadContextTest extends TestCase
 
         self::assertTrue($container->hasDefinition(\Bahdan\LeadCaptureBundle\Application\CaptureLead::class));
         self::assertTrue($container->hasAlias(\Bahdan\LeadCaptureBundle\Domain\LeadRepository::class));
+        self::assertFalse($container->hasDefinition(DoctrineLeadRepository::class));
+        $container->compile();
+    }
+
+    public function testDoctrineStorageWritesExplicitUtcOffset(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects(self::once())
+            ->method('insert')
+            ->with('leads', self::callback(static function (array $data): bool {
+                return $data['created_at'] === '2026-08-25 10:30:00+00:00';
+            }));
+        $entityManager = $this->createStub(EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+        $lead = new Lead(
+            'person@example.com',
+            '',
+            'Message',
+            'hash',
+            'test',
+            new \DateTimeImmutable('2026-08-25 12:30:00+02:00'),
+        );
+
+        (new DoctrineLeadRepository($entityManager))->save($lead);
     }
 }

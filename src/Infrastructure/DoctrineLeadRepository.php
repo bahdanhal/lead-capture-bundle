@@ -24,7 +24,7 @@ final readonly class DoctrineLeadRepository implements LeadRepository
             'message' => $lead->message,
             'ip_hash' => $lead->ipHash,
             'source' => $lead->source,
-            'created_at' => $lead->createdAt->format('Y-m-d H:i:s'),
+            'created_at' => $lead->createdAt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:sP'),
         ]);
     }
 
