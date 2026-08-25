@@ -9,8 +9,12 @@ use Bahdan\LeadCaptureBundle\Domain\Lead;
 use Bahdan\LeadCaptureBundle\Infrastructure\DoctrineLeadRepository;
 use Bahdan\LeadCaptureBundle\Infrastructure\JsonlLeadRepository;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class LeadContextTest extends TestCase
 {
@@ -106,14 +110,40 @@ final class LeadContextTest extends TestCase
         $container->compile();
     }
 
-    public function testDoctrineStorageWritesExplicitUtcOffset(): void
+    public function testBundlePrependsDoctrineMappingWhenDoctrineIsAvailable(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new class extends Extension {
+            public function load(array $configs, ContainerBuilder $container): void
+            {
+            }
+
+            public function getAlias(): string
+            {
+                return 'doctrine';
+            }
+        });
+
+        (new \Bahdan\LeadCaptureBundle\LeadCaptureBundle())->prepend($container);
+
+        $config = $container->getExtensionConfig('doctrine')[0];
+        self::assertSame('attribute', $config['orm']['mappings']['LeadCaptureBundle']['type']);
+        self::assertSame('Bahdan\\LeadCaptureBundle\\Entity', $config['orm']['mappings']['LeadCaptureBundle']['prefix']);
+    }
+
+    public function testDoctrineStorageUsesPortableDateTimeType(): void
     {
         $connection = $this->createMock(Connection::class);
         $connection->expects(self::once())
             ->method('insert')
-            ->with('leads', self::callback(static function (array $data): bool {
-                return $data['created_at'] === '2026-08-25 10:30:00+00:00';
-            }));
+            ->with(
+                'leads',
+                self::callback(static function (array $data): bool {
+                    return $data['created_at'] instanceof \DateTimeImmutable
+                        && $data['created_at']->format(DATE_ATOM) === '2026-08-25T10:30:00+00:00';
+                }),
+                ['created_at' => Types::DATETIMETZ_IMMUTABLE],
+            );
         $entityManager = $this->createStub(EntityManagerInterface::class);
         $entityManager->method('getConnection')->willReturn($connection);
         $lead = new Lead(
@@ -126,5 +156,49 @@ final class LeadContextTest extends TestCase
         );
 
         (new DoctrineLeadRepository($entityManager))->save($lead);
+    }
+
+    public function testCaptureDispatchesLeadCapturedEvent(): void
+    {
+        $directory = sys_get_temp_dir() . '/lead-event-' . bin2hex(random_bytes(4));
+        $repository = new JsonlLeadRepository($directory);
+        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher->expects(self::once())
+            ->method('dispatch')
+            ->with(self::isInstanceOf(\Bahdan\LeadCaptureBundle\Event\LeadCaptured::class));
+
+        try {
+            (new CaptureLead($repository, 'secret', $dispatcher))->execute(
+                'person@example.com',
+                '',
+                'Hello',
+                '203.0.113.1',
+                'website',
+            );
+        } finally {
+            foreach (glob($directory . '/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($directory);
+        }
+    }
+
+    public function testLimitedJsonlReadSkipsMalformedNewestLine(): void
+    {
+        $directory = sys_get_temp_dir() . '/lead-limited-' . bin2hex(random_bytes(4));
+        mkdir($directory, 0770, true);
+        $file = $directory . '/leads-2026-08.jsonl';
+        $first = new Lead('first@example.com', '', '', 'hash', 'test', new \DateTimeImmutable('2026-08-25 10:00:00 UTC'));
+        $second = new Lead('second@example.com', '', '', 'hash', 'test', new \DateTimeImmutable('2026-08-25 11:00:00 UTC'));
+        file_put_contents($file, json_encode($first->toArray()) . "\n" . json_encode($second->toArray()) . "\n{broken}\n");
+
+        try {
+            $leads = (new JsonlLeadRepository($directory))->all(1);
+            self::assertCount(1, $leads);
+            self::assertSame('second@example.com', $leads[0]->email);
+        } finally {
+            @unlink($file);
+            @rmdir($directory);
+        }
     }
 }

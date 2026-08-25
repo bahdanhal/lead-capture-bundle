@@ -7,6 +7,7 @@ namespace Bahdan\LeadCaptureBundle\Infrastructure;
 use Bahdan\LeadCaptureBundle\Domain\Lead;
 use Bahdan\LeadCaptureBundle\Domain\LeadRepository;
 use Bahdan\LeadCaptureBundle\Entity\LeadEntity;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 
 final readonly class DoctrineLeadRepository implements LeadRepository
@@ -24,7 +25,9 @@ final readonly class DoctrineLeadRepository implements LeadRepository
             'message' => $lead->message,
             'ip_hash' => $lead->ipHash,
             'source' => $lead->source,
-            'created_at' => $lead->createdAt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:sP'),
+            'created_at' => $lead->createdAt->setTimezone(new \DateTimeZone('UTC')),
+        ], [
+            'created_at' => Types::DATETIMETZ_IMMUTABLE,
         ]);
     }
 

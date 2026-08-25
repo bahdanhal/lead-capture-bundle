@@ -33,43 +33,104 @@ final readonly class JsonlLeadRepository implements LeadRepository
     /** @return list<Lead> */
     public function all(?int $limit = null): array
     {
+        if ($limit !== null && $limit <= 0) {
+            return [];
+        }
+
         $files = glob(rtrim($this->directory, '/') . '/leads-*.jsonl') ?: [];
         rsort($files);
         $leads = [];
 
         foreach ($files as $file) {
+            if ($limit !== null) {
+                foreach ($this->reverseLines($file) as $line) {
+                    $lead = $this->deserialize($line);
+                    if ($lead === null) {
+                        continue;
+                    }
+                    $leads[] = $lead;
+                    if (count($leads) >= $limit) {
+                        break 2;
+                    }
+                }
+                continue;
+            }
+
             $handle = @fopen($file, 'rb');
             if ($handle === false) {
                 continue;
             }
 
-            $fileLeads = [];
             while (($line = fgets($handle)) !== false) {
-                $line = trim($line);
-                if ($line === '') {
-                    continue;
-                }
-                try {
-                    $data = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
-                    if (is_array($data)) {
-                        $fileLeads[] = Lead::fromArray($data);
-                    }
-                } catch (\Throwable) {
-                    continue;
+                $lead = $this->deserialize($line);
+                if ($lead !== null) {
+                    $leads[] = $lead;
                 }
             }
             fclose($handle);
-
-            for ($i = count($fileLeads) - 1; $i >= 0; --$i) {
-                $leads[] = $fileLeads[$i];
-                if ($limit !== null && count($leads) >= $limit) {
-                    break 2;
-                }
-            }
         }
 
         usort($leads, static fn (Lead $left, Lead $right): int => $right->createdAt <=> $left->createdAt);
 
-        return $limit !== null ? array_slice($leads, 0, $limit) : $leads;
+        return $leads;
+    }
+
+    private function deserialize(string $line): ?Lead
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return null;
+        }
+
+        try {
+            $data = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+
+            return is_array($data) ? Lead::fromArray($data) : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** @return \Generator<int, string> */
+    private function reverseLines(string $file): \Generator
+    {
+        $handle = @fopen($file, 'rb');
+        if ($handle === false) {
+            return;
+        }
+
+        try {
+            fseek($handle, 0, SEEK_END);
+            $position = ftell($handle);
+            if ($position === false) {
+                return;
+            }
+            $buffer = '';
+
+            while ($position > 0) {
+                $readSize = min(8192, $position);
+                $position -= $readSize;
+                fseek($handle, $position);
+                $chunk = fread($handle, $readSize);
+                if ($chunk === false) {
+                    return;
+                }
+                $buffer = $chunk . $buffer;
+
+                while (($newline = strrpos($buffer, "\n")) !== false) {
+                    $line = substr($buffer, $newline + 1);
+                    $buffer = substr($buffer, 0, $newline);
+                    if ($line !== '') {
+                        yield $line;
+                    }
+                }
+            }
+
+            if ($buffer !== '') {
+                yield $buffer;
+            }
+        } finally {
+            fclose($handle);
+        }
     }
 }

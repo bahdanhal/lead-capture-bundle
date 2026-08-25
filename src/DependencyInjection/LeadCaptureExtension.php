@@ -12,6 +12,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 final class LeadCaptureExtension extends Extension
 {
@@ -45,6 +46,7 @@ final class LeadCaptureExtension extends Extension
         $captureLeadDefinition = new Definition(CaptureLead::class, [
             new Reference(LeadRepository::class),
             $config['secret'],
+            new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE),
         ]);
         $captureLeadDefinition->setAutowired(true);
         $captureLeadDefinition->setAutoconfigured(true);
